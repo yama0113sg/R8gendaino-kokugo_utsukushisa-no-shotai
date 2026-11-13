@@ -474,7 +474,23 @@
       }
     }
 
-    main.append(el('div', { class: 't-figure' }, g), el('div', { class: 't-stats' }, el('span', null, '回答', el('b', { text: String(n) }), ' 人')));
+    // 1.00 より左・ほぼぴったり・右の割合
+    const pct = (k) => (n ? Math.round((k / n) * 100) + '' : '—');
+    const near = (r) => Math.abs(r - 1) < 0.005;
+    const left = data.answers.filter((a) => a.ratio < 1 && !near(a.ratio)).length;
+    const right = data.answers.filter((a) => a.ratio > 1 && !near(a.ratio)).length;
+    const just = n - left - right;
+    main.append(
+      el('div', { class: 't-figure' }, g),
+      el(
+        'div',
+        { class: 't-stats' },
+        el('span', null, '回答', el('b', { text: String(n) }), ' 人'),
+        el('span', null, '1.00 より左', el('b', { text: pct(left) }), ' ％'),
+        el('span', null, 'ほぼぴったり', el('b', { text: pct(just) }), ' ％'),
+        el('span', null, '1.00 より右', el('b', { text: pct(right) }), ' ％')
+      )
+    );
   }
 
   // ---------- 開始 ----------

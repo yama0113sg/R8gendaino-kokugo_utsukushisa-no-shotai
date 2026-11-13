@@ -42,12 +42,12 @@ window.APP_CONFIG = {
       handText: '手を挙げて答えてね',
     },
     4: {
-      label: '美しい二等分',
+      label: '美しくそろえる',
       // 'brentano'：1本の線の真ん中の点を動かして、左右を同じ長さにする
-      // 'classic' ：上下2本の線で、下の線の長さを上にそろえる（question も下のコメントの文に戻す）
-      variant: 'brentano',
-      question: '真ん中の点を動かして、この線を美しく二等分してください。',
-      // classic のとき：'下の線を、上の線と同じ長さに見えるように調整してください。'
+      // 'classic' ：上下2本の線で、下の線の長さを上にそろえる（変えるときは label と question も合わせる）
+      variant: 'classic',
+      question: '下の線の長さを、上の線と美しくそろうように調整してください。',
+      // brentano のとき：label '美しい二等分'／question '真ん中の点を動かして、この線を美しく二等分してください。'
       hint: 'スライダーを動かして合わせてね。',
       // 比率の範囲（brentano：外向きの側 ÷ 内向きの側／classic：下の線 ÷ 上の線）
       MIN: 0.5,
