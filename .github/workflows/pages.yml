@@ -2,7 +2,7 @@ name: Deploy public/ to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/nifty-ramanujan-0s8idu]
     paths: ['public/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 

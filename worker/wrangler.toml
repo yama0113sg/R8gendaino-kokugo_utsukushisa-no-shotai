@@ -6,7 +6,7 @@ compatibility_date = "2025-01-01"
 binding = "DB"
 database_name = "utsukushisa-sakaime"
 # `npx wrangler d1 create utsukushisa-sakaime` で表示された database_id に置き換える
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "0f9c1d33-00fb-4546-aff3-0236d101cb97"
 
 [vars]
 # 受け付けるクラスコード（カンマ区切り）

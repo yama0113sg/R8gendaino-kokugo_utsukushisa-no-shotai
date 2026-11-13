@@ -1,7 +1,7 @@
 // 設定ファイル：文言・言葉リスト・モードなどはここで差し替える
 window.APP_CONFIG = {
   // Cloudflare Worker の URL（末尾に / を付けない）
-  API_BASE: 'https://utsukushisa-sakaime.YOUR-SUBDOMAIN.workers.dev',
+  API_BASE: 'https://utsukushisa-sakaime.ryousukey0113.workers.dev',
 
   // 状態・結果を取りに行く間隔（ミリ秒）
   POLL_MS: 2000,
