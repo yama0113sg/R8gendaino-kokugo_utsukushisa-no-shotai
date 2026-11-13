@@ -518,11 +518,13 @@
   // =====================================================
   // ④ 錯視の線
   // =====================================================
-  const LINE = { W: 1000, H: 540, LA: 400, FIN: 58, YA: 170, YB: 390, STROKE: 6 };
+  // 矢羽根は線の長さの約25％。下の線は左右にずらして、端を縦にそろえて比べられないようにする
+  const LINE = { W: 1000, H: 560, LA: 360, FIN: 90, YA: 170, YB: 400, STROKE: 6, SHIFT_MIN: 60, SHIFT_MAX: 120 };
 
   function linesSvg(ratio, opts) {
     const o = opts || {};
     const cx = LINE.W / 2;
+    const bx = cx + (o.shift || 0);
     const g = svg('svg', { viewBox: `0 0 ${LINE.W} ${LINE.H}`, class: 'lines-svg', role: 'img', 'aria-label': '二本の線' });
     if (o.guides) {
       for (const x of [cx - LINE.LA / 2, cx + LINE.LA / 2]) {
@@ -530,8 +532,8 @@
           svg('line', {
             x1: x,
             x2: x,
-            y1: LINE.YA - 70,
-            y2: LINE.YB + 70,
+            y1: LINE.YA - 90,
+            y2: LINE.YB + 90,
             stroke: '#c2553d',
             'stroke-width': 3,
             'stroke-dasharray': '10 9',
@@ -540,10 +542,10 @@
       }
     }
     g.append(mullerLyer(cx, LINE.YA, LINE.LA, 'in', LINE.FIN, { width: LINE.STROKE }));
-    let b = mullerLyer(cx, LINE.YB, LINE.LA * ratio, 'out', LINE.FIN, { width: LINE.STROKE });
+    let b = mullerLyer(bx, LINE.YB, LINE.LA * ratio, 'out', LINE.FIN, { width: LINE.STROKE });
     g.append(b);
     function setB(r) {
-      const next = mullerLyer(cx, LINE.YB, LINE.LA * r, 'out', LINE.FIN, { width: LINE.STROKE });
+      const next = mullerLyer(bx, LINE.YB, LINE.LA * r, 'out', LINE.FIN, { width: LINE.STROKE });
       b.replaceWith(next);
       b = next;
     }
@@ -603,7 +605,8 @@
     }
 
     let ratio = conf.START_MIN + Math.random() * (conf.START_MAX - conf.START_MIN);
-    const fig = linesSvg(ratio);
+    const shift = (Math.random() < 0.5 ? -1 : 1) * (LINE.SHIFT_MIN + Math.random() * (LINE.SHIFT_MAX - LINE.SHIFT_MIN));
+    const fig = linesSvg(ratio, { shift });
     const slider = el('input', {
       type: 'range',
       class: 'big',
@@ -616,8 +619,14 @@
     slider.addEventListener('input', () => {
       ratio = Number(slider.value);
       fig.setB(ratio);
+      if (!moved) {
+        moved = true;
+        go.disabled = false;
+      }
     });
-    const go = el('button', { class: 'btn primary', text: 'これで決定' });
+    // 一度もスライダーを動かしていないうちは決定できない
+    let moved = false;
+    const go = el('button', { class: 'btn primary', text: 'これで決定', disabled: true });
     const actions = el('div', { class: 'actions' }, go);
     app.append(fig.svg, el('div', { class: 'slider-row' }, slider), actions);
 
@@ -630,7 +639,7 @@
         actions.replaceChildren(el('div', { class: 'done-note', text: '送信しました。前を見て待っていてね。' }));
         hint.textContent = '';
       } catch {
-        go.disabled = false;
+        go.disabled = !moved;
         slider.disabled = false;
         hint.className = 'hint warn';
         hint.textContent = '送信できませんでした。もう一度「これで決定」を押してください。';

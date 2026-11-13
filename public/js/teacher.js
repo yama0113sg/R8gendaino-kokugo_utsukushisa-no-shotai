@@ -426,11 +426,11 @@
       const ya = 560;
       const yb = 760;
       for (const gx of [cx - L / 2, cx + L / 2]) {
-        g.append(svg('line', { x1: gx, x2: gx, y1: ya - 70, y2: yb + 70, stroke: COLOR.red, 'stroke-width': 4, 'stroke-dasharray': '12 10' }));
+        g.append(svg('line', { x1: gx, x2: gx, y1: ya - 95, y2: yb + 95, stroke: COLOR.red, 'stroke-width': 4, 'stroke-dasharray': '12 10' }));
       }
       g.append(
-        mullerLyer(cx, ya, L, 'in', 70, { stroke: COLOR.ink, width: 8 }),
-        mullerLyer(cx, yb, L, 'out', 70, { stroke: COLOR.ink, width: 8 })
+        mullerLyer(cx, ya, L, 'in', 130, { stroke: COLOR.ink, width: 8 }),
+        mullerLyer(cx, yb, L, 'out', 130, { stroke: COLOR.ink, width: 8 })
       );
     }
 
