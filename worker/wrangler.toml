@@ -1,0 +1,19 @@
+name = "utsukushisa-sakaime"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "utsukushisa-sakaime"
+# `npx wrangler d1 create utsukushisa-sakaime` で表示された database_id に置き換える
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+# 受け付けるクラスコード（カンマ区切り）
+ALLOWED_CLASSES = "1-1,1-3,test"
+# アクセスを許可するフロントのオリジン（カンマ区切り。末尾に / を付けない）
+ALLOWED_ORIGINS = "https://yama0113sg.github.io"
+# ②で受け付ける言葉（カンマ区切り）。public/js/config.js の words と同じにする
+WORDS = "花,富士山,夕焼け,雲,雨の日,数式,さびた自転車,古い写真,猫,夜のコンビニ"
+
+# TEACHER_KEY はここに書かず、`npx wrangler secret put TEACHER_KEY` で設定する
