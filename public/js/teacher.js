@@ -108,8 +108,13 @@
   $('prev').addEventListener('click', () => go(-1));
   $('next').addEventListener('click', () => go(1));
   $('wait').addEventListener('click', () => setState({ waiting: !state.waiting }));
-  $('view').addEventListener('click', () => setState({ view: state.view === 'result' ? 'live' : 'result' }));
-  $('reveal').addEventListener('click', () => setState({ reveal: !state.reveal, view: 'result' }));
+  // ④では、結果と正解を同時に見せる（生徒画面にも正解が出る）
+  $('view').addEventListener('click', () => {
+    const toResult = state.view !== 'result';
+    const patch = { view: toResult ? 'result' : 'live' };
+    if (state.stage === 4) patch.reveal = toResult;
+    setState(patch);
+  });
   $('sort').addEventListener('click', () => {
     sortByRate = !sortByRate;
     render();
@@ -218,11 +223,9 @@
     $('wait').disabled = !inStage;
     $('wait').textContent = state.waiting && inStage ? '待機を解除' : '待機にする';
     $('view').classList.toggle('hidden', !inStage || isDisplay3);
-    $('view').textContent = state.view === 'result' ? '問いに戻す' : '結果を見せる';
+    $('view').textContent = state.view === 'result' ? '問いに戻す' : s === 4 ? '結果と正解を見せる' : '結果を見せる';
     $('sort').classList.toggle('hidden', !(s === 2 && state.view === 'result'));
     $('sort').textContent = sortByRate ? 'もとの順に戻す' : '割合順に並べる';
-    $('reveal').classList.toggle('hidden', !(s === 4 && state.view === 'result'));
-    $('reveal').textContent = state.reveal ? '正解を隠す' : '正解を表示';
 
     let student;
     if (s === 0) student = '開始前の画面';
