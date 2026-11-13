@@ -420,18 +420,55 @@
       t.textContent = '同じ長さ（1.00）';
       g.append(t);
 
-      // A と B を本当に同じ長さで描いた図
-      const cx = W / 2;
-      const L = 520;
-      const ya = 560;
-      const yb = 760;
-      for (const gx of [cx - L / 2, cx + L / 2]) {
-        g.append(svg('line', { x1: gx, x2: gx, y1: ya - 95, y2: yb + 95, stroke: COLOR.red, 'stroke-width': 4, 'stroke-dasharray': '12 10' }));
+      if (conf.variant === 'classic') {
+        // A と B を本当に同じ長さで描いた図
+        const cx = W / 2;
+        const L = 520;
+        const ya = 560;
+        const yb = 760;
+        for (const gx of [cx - L / 2, cx + L / 2]) {
+          g.append(svg('line', { x1: gx, x2: gx, y1: ya - 95, y2: yb + 95, stroke: COLOR.red, 'stroke-width': 4, 'stroke-dasharray': '12 10' }));
+        }
+        g.append(
+          mullerLyer(cx, ya, L, 'in', 130, { stroke: COLOR.ink, width: 8 }),
+          mullerLyer(cx, yb, L, 'out', 130, { stroke: COLOR.ink, width: 8 })
+        );
+      } else {
+        // 真ん中の点で、ちょうど半分に分けた図
+        const cx = W / 2;
+        const T = 960;
+        const y = 610;
+        const fin = 110;
+        const dx = fin * Math.cos(Math.PI / 5);
+        const dy = fin * Math.sin(Math.PI / 5);
+        const x0 = cx - T / 2;
+        const x1 = cx + T / 2;
+        const v = (x, dir) => `M${x + dir * dx} ${y - dy}L${x} ${y}L${x + dir * dx} ${y + dy}`;
+        for (const gx of [x0, cx, x1]) {
+          g.append(svg('line', { x1: gx, x2: gx, y1: y - 100, y2: y + 170, stroke: COLOR.red, 'stroke-width': 4, 'stroke-dasharray': '12 10' }));
+        }
+        g.append(
+          svg('path', {
+            d: `M${x0} ${y}L${x1} ${y}` + v(x0, 1) + v(cx, -1) + v(x1, 1),
+            fill: 'none',
+            stroke: COLOR.ink,
+            'stroke-width': 8,
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+          }),
+          svg('circle', { cx, cy: y, r: 13, fill: COLOR.accent })
+        );
+        // 左右の長さを示す目盛り
+        const yb = y + 140;
+        for (const [a, b] of [[x0, cx], [cx, x1]]) {
+          g.append(
+            svg('path', { d: `M${a + 6} ${yb - 14}V${yb}H${b - 6}V${yb - 14}`, fill: 'none', stroke: COLOR.red, 'stroke-width': 5 })
+          );
+          const t = svg('text', { x: (a + b) / 2, y: yb + 42, 'text-anchor': 'middle', 'font-size': 32, fill: COLOR.red, 'font-weight': 700 });
+          t.textContent = '同じ長さ';
+          g.append(t);
+        }
       }
-      g.append(
-        mullerLyer(cx, ya, L, 'in', 130, { stroke: COLOR.ink, width: 8 }),
-        mullerLyer(cx, yb, L, 'out', 130, { stroke: COLOR.ink, width: 8 })
-      );
     }
 
     main.append(el('div', { class: 't-figure' }, g), el('div', { class: 't-stats' }, el('span', null, '回答', el('b', { text: String(n) }), ' 人')));

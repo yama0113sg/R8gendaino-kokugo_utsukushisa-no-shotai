@@ -577,25 +577,64 @@
     return g;
   }
 
+  // ブレンターノ型（1本の線を真ん中の点で2つに分ける形）
+  // 矢羽根が内向きの側を「in」、外向きの側を「out」とし、比率は out ÷ in
+  const BREN = { W: 1000, H: 380, T: 640, FIN: 80, Y: 190, STROKE: 6 };
+
+  function brentanoPath(cx, y, T, ratio, flip, fin) {
+    const lin = T / (1 + ratio);
+    const x0 = cx - T / 2;
+    const x1 = cx + T / 2;
+    const xm = flip ? x1 - lin : x0 + lin;
+    const dx = fin * Math.cos(Math.PI / 5);
+    const dy = fin * Math.sin(Math.PI / 5);
+    const s = flip ? -1 : 1;
+    const v = (x, dir) => `M${x + dir * dx} ${y - dy}L${x} ${y}L${x + dir * dx} ${y + dy}`;
+    return { d: `M${x0} ${y}L${x1} ${y}` + v(x0, s) + v(xm, -s) + v(x1, s), x0, x1, xm };
+  }
+
+  function brentanoSvg(ratio, opts) {
+    const o = opts || {};
+    const cx = BREN.W / 2;
+    const g = svg('svg', { viewBox: `0 0 ${BREN.W} ${BREN.H}`, class: 'lines-svg', role: 'img', 'aria-label': '真ん中に点のある線' });
+    const path = svg('path', { fill: 'none', stroke: 'currentColor', 'stroke-width': BREN.STROKE, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    const dot = svg('circle', { r: 11, cy: BREN.Y, fill: '#34507a' });
+    if (o.truth) {
+      g.append(
+        svg('line', { x1: cx, x2: cx, y1: BREN.Y - 120, y2: BREN.Y + 110, stroke: '#c2553d', 'stroke-width': 3, 'stroke-dasharray': '10 9' })
+      );
+      const t = svg('text', { x: cx, y: BREN.Y - 132, 'text-anchor': 'middle', 'font-size': 26, fill: '#c2553d', 'font-weight': 700 });
+      t.textContent = 'ほんとうの真ん中';
+      g.append(t);
+    }
+    g.append(path, dot);
+    function set(r) {
+      const b = brentanoPath(cx, BREN.Y, BREN.T, r, !!o.flip, BREN.FIN);
+      path.setAttribute('d', b.d);
+      dot.setAttribute('cx', b.xm);
+    }
+    set(ratio);
+    return { svg: g, set };
+  }
+
   function stageLines(mine, reveal) {
     const conf = CFG.stages[4];
+    const classic = conf.variant === 'classic';
     const hint = header(4);
 
     if (mine) {
       hint.textContent = '';
-      const fig = linesSvg(mine.ratio, { guides: reveal });
-      app.append(fig.svg);
+      app.append(classic ? linesSvg(mine.ratio, { guides: reveal }).svg : brentanoSvg(mine.ratio, { truth: reveal }).svg);
       if (reveal) {
         app.append(
           numberLine(mine.ratio),
           el(
             'p',
             { class: 'compare' },
-            'あなたの答え：上の線の ',
+            'あなたの答え ',
             el('b', { text: mine.ratio.toFixed(2) }),
-            ' 倍　／　ほんとうは ',
-            el('b', { text: '1.00' }),
-            ' 倍（同じ長さ）'
+            '　／　ほんとうに同じ長さなら ',
+            el('b', { text: '1.00' })
           )
         );
       } else {
@@ -605,28 +644,56 @@
     }
 
     let ratio = conf.START_MIN + Math.random() * (conf.START_MAX - conf.START_MIN);
-    const shift = (Math.random() < 0.5 ? -1 : 1) * (LINE.SHIFT_MIN + Math.random() * (LINE.SHIFT_MAX - LINE.SHIFT_MIN));
-    const fig = linesSvg(ratio, { shift });
+    // スライダーの位置（0〜1000）と比率の対応
+    let fig;
+    let toRatio;
+    let toPos;
+    if (classic) {
+      const shift = (Math.random() < 0.5 ? -1 : 1) * (LINE.SHIFT_MIN + Math.random() * (LINE.SHIFT_MAX - LINE.SHIFT_MIN));
+      const f = linesSvg(ratio, { shift });
+      fig = { svg: f.svg, set: f.setB };
+      toRatio = (v) => conf.MIN + (v / 1000) * (conf.MAX - conf.MIN);
+      toPos = (r) => ((r - conf.MIN) / (conf.MAX - conf.MIN)) * 1000;
+    } else {
+      // 左右の向きも端末ごとにランダム。つまみを動かした向きに真ん中の点が動く
+      const flip = Math.random() < 0.5;
+      fig = brentanoSvg(ratio, { flip });
+      // 真ん中の点の位置（左端からの割合）
+      const frac = (r) => (flip ? r / (1 + r) : 1 / (1 + r));
+      const fa = frac(conf.MIN);
+      const fb = frac(conf.MAX);
+      const lo = Math.min(fa, fb);
+      const hi = Math.max(fa, fb);
+      toRatio = (v) => {
+        const f = lo + (v / 1000) * (hi - lo);
+        return flip ? f / (1 - f) : (1 - f) / f;
+      };
+      toPos = (r) => ((frac(r) - lo) / (hi - lo)) * 1000;
+    }
+
     const slider = el('input', {
       type: 'range',
       class: 'big',
-      min: conf.MIN,
-      max: conf.MAX,
-      step: 0.001,
-      value: ratio.toFixed(3),
-      'aria-label': '下の線の長さ',
+      min: 0,
+      max: 1000,
+      step: 1,
+      value: Math.round(toPos(ratio)),
+      'aria-label': classic ? '下の線の長さ' : '真ん中の点の位置',
     });
+    ratio = toRatio(Number(slider.value));
+    fig.set(ratio);
+
+    // 一度もスライダーを動かしていないうちは決定できない
+    let moved = false;
+    const go = el('button', { class: 'btn primary', text: 'これで決定', disabled: true });
     slider.addEventListener('input', () => {
-      ratio = Number(slider.value);
-      fig.setB(ratio);
+      ratio = toRatio(Number(slider.value));
+      fig.set(ratio);
       if (!moved) {
         moved = true;
         go.disabled = false;
       }
     });
-    // 一度もスライダーを動かしていないうちは決定できない
-    let moved = false;
-    const go = el('button', { class: 'btn primary', text: 'これで決定', disabled: true });
     const actions = el('div', { class: 'actions' }, go);
     app.append(fig.svg, el('div', { class: 'slider-row' }, slider), actions);
 
