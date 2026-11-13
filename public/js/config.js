@@ -17,7 +17,7 @@ window.APP_CONFIG = {
 
   stages: {
     1: {
-      label: '円を描く',
+      label: '美しい円',
       question: 'できるだけ、美しい円を描いてください。',
       hint: '指で一筆で。指をはなすと終わります。',
       // 真円度 = 100 − SCALE × (RMS偏差 ÷ 平均半径) × 100
@@ -42,7 +42,7 @@ window.APP_CONFIG = {
       handText: '手を挙げて答えてね',
     },
     4: {
-      label: '錯視の線',
+      label: '美しい二等分',
       // 'brentano'：1本の線の真ん中の点を動かして、左右を同じ長さにする
       // 'classic' ：上下2本の線で、下の線の長さを上にそろえる（question も下のコメントの文に戻す）
       variant: 'brentano',
