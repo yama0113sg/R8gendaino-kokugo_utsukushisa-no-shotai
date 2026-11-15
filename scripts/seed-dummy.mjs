@@ -80,7 +80,12 @@ function payloadFor(stage) {
   if (stage === 1) return dummyCircle();
   if (stage === 2) return { selected: WORDS.filter((w) => Math.random() < WORD_RATE[w]) };
   if (stage === 3) return { choice: Math.random() < 0.45 ? 'innate' : 'experience' };
-  if (stage === 4) return { ratio: Math.round(Math.max(0.6, Math.min(1.2, 0.85 + gauss() * 0.04)) * 10000) / 10000 };
+  if (stage === 4) {
+    // --lines を付けると錯視（比率 0.85 前後）、付けないと長方形（横÷縦 1.6 前後）
+    if (args.lines) return { ratio: Math.round(Math.max(0.6, Math.min(1.2, 0.85 + gauss() * 0.04)) * 10000) / 10000 };
+    const k = Math.max(1.0, Math.min(3.0, 1.6 + gauss() * 0.3));
+    return { ratio: Math.round((1 / k) * 10000) / 10000 };
+  }
 }
 
 let ok = 0;

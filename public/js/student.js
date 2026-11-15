@@ -617,8 +617,120 @@
     return { svg: g, set };
   }
 
+  // 長方形（面積は一定のまま、横÷縦の比 k を変える）。保存するのは 縦÷横（= 1/k）
+  const RECT = { W: 1000, H: 600, AREA: 250000 };
+
+  function rectSvg(k, opts) {
+    const o = opts || {};
+    const W = o.W || RECT.W;
+    const H = o.H || RECT.H;
+    const area = o.area || RECT.AREA;
+    const g = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'lines-svg', role: 'img', 'aria-label': '長方形', style: o.style || '' });
+    const r = svg('rect', { fill: '#e6ecf4', stroke: '#2a2826', 'stroke-width': 5, rx: 2 });
+    g.append(r);
+    function set(kk) {
+      const w = Math.sqrt(area * kk);
+      const h = Math.sqrt(area / kk);
+      r.setAttribute('x', (W - w) / 2);
+      r.setAttribute('y', (H - h) / 2);
+      r.setAttribute('width', w);
+      r.setAttribute('height', h);
+    }
+    set(k);
+    return { svg: g, set };
+  }
+
+  const fmtK = (k) => k.toFixed(2);
+
+  function stageRect(mine, reveal) {
+    const conf = CFG.stages[4];
+    const hint = header(4);
+
+    if (mine) {
+      hint.textContent = '';
+      const myK = 1 / mine.ratio;
+      if (!reveal) {
+        app.append(rectSvg(myK).svg, el('div', { class: 'done-note', text: '回答済みです。前を見て待っていてね。' }));
+        return;
+      }
+      // 自分の長方形とクラスの平均を並べる
+      const pair = el('div', { class: 'rect-pair' });
+      const mineBox = el(
+        'figure',
+        null,
+        rectSvg(myK, { W: 600, H: 420, area: 70000 }).svg,
+        el('figcaption', null, 'あなた　横は縦の ', el('b', { text: fmtK(myK) }), ' 倍')
+      );
+      pair.append(mineBox);
+      app.append(pair);
+      api
+        .get(`/api/results?class=${encodeURIComponent(cls)}&stage=4`)
+        .then((res) => {
+          const ks = res.answers.map((a) => 1 / a.ratio);
+          if (!ks.length) return;
+          const avg = ks.reduce((x, y) => x + y, 0) / ks.length;
+          pair.append(
+            el(
+              'figure',
+              null,
+              rectSvg(avg, { W: 600, H: 420, area: 70000 }).svg,
+              el('figcaption', null, `クラスの平均（${ks.length}人）　`, el('b', { text: fmtK(avg) }), ' 倍')
+            )
+          );
+        })
+        .catch(() => {});
+      return;
+    }
+
+    let k = conf.RECT_START_MIN + Math.random() * (conf.RECT_START_MAX - conf.RECT_START_MIN);
+    const fig = rectSvg(k);
+    const toK = (v) => conf.RECT_MIN + (v / 1000) * (conf.RECT_MAX - conf.RECT_MIN);
+    const slider = el('input', {
+      type: 'range',
+      class: 'big',
+      min: 0,
+      max: 1000,
+      step: 1,
+      value: Math.round(((k - conf.RECT_MIN) / (conf.RECT_MAX - conf.RECT_MIN)) * 1000),
+      'aria-label': '長方形の形',
+    });
+    k = toK(Number(slider.value));
+    fig.set(k);
+
+    // 一度もスライダーを動かしていないうちは決定できない
+    let moved = false;
+    const go = el('button', { class: 'btn primary', text: 'これで決定', disabled: true });
+    slider.addEventListener('input', () => {
+      k = toK(Number(slider.value));
+      fig.set(k);
+      if (!moved) {
+        moved = true;
+        go.disabled = false;
+      }
+    });
+    const actions = el('div', { class: 'actions' }, go);
+    app.append(fig.svg, el('div', { class: 'slider-row' }, slider), actions);
+
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      slider.disabled = true;
+      try {
+        await send(4, { ratio: Math.round((1 / k) * 10000) / 10000 });
+        markDone(4);
+        actions.replaceChildren(el('div', { class: 'done-note', text: '送信しました。前を見て待っていてね。' }));
+        hint.textContent = '';
+      } catch {
+        go.disabled = !moved;
+        slider.disabled = false;
+        hint.className = 'hint warn';
+        hint.textContent = '送信できませんでした。もう一度「これで決定」を押してください。';
+      }
+    });
+  }
+
   function stageLines(mine, reveal) {
     const conf = CFG.stages[4];
+    if (conf.variant === 'rectangle') return stageRect(mine, reveal);
     const classic = conf.variant === 'classic';
     const hint = header(4);
 

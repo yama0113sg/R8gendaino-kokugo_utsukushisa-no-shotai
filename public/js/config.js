@@ -42,13 +42,23 @@ window.APP_CONFIG = {
       handText: '手を挙げて答えてね',
     },
     4: {
-      label: '美しくそろえる',
-      // 'brentano'：1本の線の真ん中の点を動かして、左右を同じ長さにする
-      // 'classic' ：上下2本の線で、下の線の長さを上にそろえる（変えるときは label と question も合わせる）
-      variant: 'classic',
-      question: '下の線の長さを、上の線と美しくそろうように調整してください。',
-      // brentano のとき：label '美しい二等分'／question '真ん中の点を動かして、この線を美しく二等分してください。'
-      hint: 'スライダーを動かして合わせてね。',
+      // 'rectangle'：いちばん美しいと思う長方形の形をえらぶ（正解なし）
+      // 'classic'  ：錯視。上下2本の線で、下の線の長さを上にそろえる
+      // 'brentano' ：錯視。1本の線の真ん中の点を動かして二等分する
+      // 変えるときは label・question・hint も下のコメントの文に合わせる
+      variant: 'rectangle',
+      label: '美しい長方形',
+      question: 'いちばん美しいと思う長方形になるように、形を変えてください。',
+      hint: 'スライダーを動かして形を変えてね。',
+      // classic  のとき：label '美しくそろえる'／question '下の線の長さを、上の線と美しくそろうように調整してください。'／hint 'スライダーを動かして合わせてね。'
+      // brentano のとき：label '美しい二等分'／question '真ん中の点を動かして、この線を美しく二等分してください。'／hint 'スライダーを動かして合わせてね。'
+
+      // rectangle：横が縦の何倍か（1.0＝正方形）の範囲と、初期位置のランダム範囲
+      RECT_MIN: 1.0,
+      RECT_MAX: 3.0,
+      RECT_START_MIN: 1.2,
+      RECT_START_MAX: 2.8,
+
       // 比率の範囲（brentano：外向きの側 ÷ 内向きの側／classic：下の線 ÷ 上の線）
       MIN: 0.5,
       MAX: 1.5,

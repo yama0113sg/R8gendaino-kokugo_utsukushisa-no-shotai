@@ -289,6 +289,27 @@ canvas.draw {
   opacity: 0.45;
 }
 
+/* ④ 長方形の結果 */
+.rect-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 900px;
+}
+.rect-pair figure {
+  margin: 0;
+  text-align: center;
+}
+.rect-pair figcaption {
+  margin-top: 8px;
+  font-size: 1.05rem;
+}
+.rect-pair figcaption b {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+}
+
 /* ③ 問い */
 .choices {
   display: grid;

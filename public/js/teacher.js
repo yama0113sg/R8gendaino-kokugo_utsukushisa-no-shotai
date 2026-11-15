@@ -223,7 +223,8 @@
     $('wait').disabled = !inStage;
     $('wait').textContent = state.waiting && inStage ? '待機を解除' : '待機にする';
     $('view').classList.toggle('hidden', !inStage || isDisplay3);
-    $('view').textContent = state.view === 'result' ? '問いに戻す' : s === 4 ? '結果と正解を見せる' : '結果を見せる';
+    $('view').textContent =
+      state.view === 'result' ? '問いに戻す' : s === 4 && CFG.stages[4].variant !== 'rectangle' ? '結果と正解を見せる' : '結果を見せる';
     $('sort').classList.toggle('hidden', !(s === 2 && state.view === 'result'));
     $('sort').textContent = sortByRate ? 'もとの順に戻す' : '割合順に並べる';
 
@@ -383,8 +384,80 @@
   }
 
   // ④ 比率の分布と正解
+  // ④ 長方形：横÷縦の分布と、クラスの平均の長方形
+  function renderRect(main, data) {
+    const conf = CFG.stages[4];
+    const W = 1600;
+    const H = 860;
+    const pad = 110;
+    const lo = conf.RECT_MIN;
+    const hi = conf.RECT_MAX;
+    const x = (v) => pad + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (W - pad * 2);
+    const g = svg('svg', { viewBox: `0 0 ${W} ${H}`, style: 'width:100%;height:100%' });
+    const y0 = 40;
+    const y1 = 260;
+    const ks = data.answers.map((a) => 1 / a.ratio).sort((a, b) => a - b);
+    const n = ks.length;
+
+    g.append(svg('line', { x1: pad, x2: W - pad, y1, y2: y1, stroke: COLOR.soft, 'stroke-width': 3 }));
+    // 目盛りと、目安になる小さな長方形
+    for (let i = 0; i <= Math.round((hi - lo) / 0.5); i++) {
+      const v = lo + i * 0.5;
+      g.append(svg('line', { x1: x(v), x2: x(v), y1, y2: y1 + 14, stroke: COLOR.soft, 'stroke-width': 3 }));
+      const t = svg('text', { x: x(v), y: y1 + 50, 'text-anchor': 'middle', 'font-size': 32, fill: COLOR.soft });
+      t.textContent = v.toFixed(1);
+      const area = 2600;
+      const w = Math.sqrt(area * v);
+      const h = Math.sqrt(area / v);
+      g.append(t, svg('rect', { x: x(v) - w / 2, y: y1 + 70, width: w, height: h, fill: 'none', stroke: COLOR.soft, 'stroke-width': 2 }));
+    }
+    const cap = svg('text', { x: W - pad, y: y1 + 150, 'text-anchor': 'end', 'font-size': 26, fill: COLOR.soft });
+    cap.textContent = '横が縦の何倍か（1.0 は正方形）';
+    g.append(cap);
+
+    const alpha = n ? Math.max(0.15, Math.min(0.7, 6 / n)) : 0;
+    for (const k of ks) {
+      g.append(svg('line', { x1: x(k), x2: x(k), y1: y0, y2: y1, stroke: COLOR.accent, 'stroke-opacity': alpha, 'stroke-width': 5 }));
+    }
+
+    let avg = null;
+    let q1 = null;
+    let q3 = null;
+    if (n) {
+      avg = ks.reduce((s, k) => s + k, 0) / n;
+      q1 = ks[Math.floor((n - 1) * 0.25)];
+      q3 = ks[Math.ceil((n - 1) * 0.75)];
+      // まん中の半分の人が入る範囲
+      g.append(svg('rect', { x: x(q1), y: y0 - 18, width: Math.max(4, x(q3) - x(q1)), height: 10, fill: COLOR.red, rx: 5 }));
+      const qt = svg('text', { x: x(q3) + 14, y: y0 - 6, 'font-size': 26, fill: COLOR.red });
+      qt.textContent = 'まん中の半分の人';
+      g.append(qt);
+      // クラスの平均の長方形
+      const area = 150000;
+      const w = Math.sqrt(area * avg);
+      const h = Math.sqrt(area / avg);
+      const cy = 640;
+      g.append(svg('rect', { x: W / 2 - w / 2, y: cy - h / 2, width: w, height: h, fill: '#e6ecf4', stroke: COLOR.ink, 'stroke-width': 6 }));
+      const t = svg('text', { x: W / 2, y: cy - h / 2 - 22, 'text-anchor': 'middle', 'font-size': 34, fill: COLOR.ink, 'font-weight': 700 });
+      t.textContent = 'クラスの平均の長方形';
+      g.append(t);
+    }
+
+    main.append(
+      el('div', { class: 't-figure' }, g),
+      el(
+        'div',
+        { class: 't-stats' },
+        el('span', null, '回答', el('b', { text: String(n) }), ' 人'),
+        el('span', null, '平均', el('b', { text: avg === null ? '—' : avg.toFixed(2) }), ' 倍'),
+        el('span', null, 'まん中の半分の人', el('b', { text: q1 === null ? '—' : `${q1.toFixed(2)}〜${q3.toFixed(2)}` }), ' 倍')
+      )
+    );
+  }
+
   function renderLines(main, data) {
     const conf = CFG.stages[4];
+    if (conf.variant === 'rectangle') return renderRect(main, data);
     const W = 1600;
     const reveal = !!state.reveal;
     const H = reveal ? 860 : 400;
