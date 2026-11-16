@@ -269,7 +269,9 @@
     st.replaceChildren(
       ...[
         el('span', null, el('span', { class: 'dot' + (inStage && !state.waiting ? '' : ' wait') }), '生徒画面：' + student),
-        inStage && results[s] && !isDisplay3 ? el('span', { text: MARK[s] + ' の回答 ' + results[s].count + ' 人' }) : null,
+        inStage && results[s] && !isDisplay3
+        ? el('span', { text: MARK[s] + (s === 1 ? ' で描かれた円 ' + results[s].count + ' 本' : ' の回答 ' + results[s].count + ' 人') })
+        : null,
         lastError ? el('span', { class: 'err', text: lastError }) : null,
       ].filter(Boolean)
     );
@@ -318,10 +320,12 @@
     if (state.view !== 'result') {
       // 回答が届くたびに、点がひとつずつ増える
       const prev = intro ? data.count : Math.min(lastCount[s] ?? data.count, data.count);
-      const dots = el('div', { class: 't-dots' });
+      // ①は1人が何本も描くので「本」で数える。点は多くなりすぎるので小さくする
+      const dots = el('div', { class: 't-dots' + (s === 1 ? ' small' : '') });
       for (let i = 0; i < data.count; i++) dots.append(el('span', { class: i >= prev ? 'new' : '' }));
       const b = el('b', { text: String(data.count), class: data.count > prev ? 'bump' : '' });
-      main.append(el('p', { class: 't-question', text: conf.question }), el('div', { class: 't-count' }, '回答', b, '人'), dots);
+      const label = s === 1 ? ['描かれた円', '本'] : ['回答', '人'];
+      main.append(el('p', { class: 't-question', text: conf.question }), el('div', { class: 't-count' }, label[0], b, label[1]), dots);
       lastCount[s] = data.count;
       return;
     }
@@ -339,7 +343,7 @@
     const R = 380;
     const g = svg('svg', { viewBox: `0 0 ${V} ${V}`, style: 'height:100%;width:auto' });
     const n = data.answers.length;
-    const alpha = n ? Math.max(0.12, Math.min(0.6, 5 / n)) : 0;
+    const alpha = n ? Math.max(0.05, Math.min(0.6, 5 / n)) : 0;
     // 1本ずつ描かれていく（全体で約2.5秒）
     const step = n ? Math.min(90, 2200 / n) : 0;
     data.answers.forEach((a, i) => {
@@ -378,8 +382,9 @@
       el(
         'div',
         { class: 't-stats' },
-        el('span', null, '回答', num(n, 0), ' 人'),
-        el('span', null, '平均の真円度', num(avg, 0), ' ％')
+        el('span', null, '描かれた円', num(n, 0), ' 本'),
+        el('span', null, '平均の真円度', num(avg, 0), ' ％'),
+        el('span', null, '真円度 100％ の円', num(n ? data.answers.filter((a) => a.score >= 100).length : null, 0), ' 本')
       )
     );
   }

@@ -19,9 +19,12 @@ window.APP_CONFIG = {
     1: {
       label: '美しい円',
       question: 'できるだけ、美しい円を描いてください。',
-      hint: '指で一筆で。指をはなすと終わります。',
+      hint: '指で一筆で。指をはなすと1本です。',
       // 真円度 = 100 − SCALE × (RMS偏差 ÷ 平均半径) × 100
       SCORE_SCALE: 3,
+      // 制限時間（秒）と、1台で描ける円の上限
+      TIME_LIMIT: 30,
+      MAX_CIRCLES: 30,
       // 真円度にそえるひとこと（上から順に、min 以上なら表示）
       comments: [
         { min: 95, text: 'コンパスいらずの手' },

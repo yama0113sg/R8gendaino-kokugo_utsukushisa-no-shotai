@@ -93,15 +93,19 @@ let ng = 0;
 for (let i = 0; i < N; i++) {
   const client_id = crypto.randomUUID();
   for (const stage of STAGES) {
-    const res = await fetch(API + '/api/answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ class: CLASS, stage, client_id, payload: payloadFor(stage) }),
-    });
-    if (res.ok) ok++;
-    else {
-      ng++;
-      if (ng <= 3) console.error(stage, res.status, await res.text());
+    // ①は1人が何本も描く（3〜10本）。2本目以降は端末IDに番号を付けて保存される
+    const times = stage === 1 ? 3 + Math.floor(Math.random() * 8) : 1;
+    for (let t = 1; t <= times; t++) {
+      const res = await fetch(API + '/api/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ class: CLASS, stage, client_id: t === 1 ? client_id : `${client_id}-${t}`, payload: payloadFor(stage) }),
+      });
+      if (res.ok) ok++;
+      else {
+        ng++;
+        if (ng <= 3) console.error(stage, res.status, await res.text());
+      }
     }
   }
 }

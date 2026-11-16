@@ -222,8 +222,14 @@
     return { cx, cy, R, score, sweep: Math.abs(sweep), r: rOut };
   }
 
+  // 制限時間のあいだ、何回でも描ける。描いた円は1本ずつすぐに送る
+  // 1本目は端末IDのまま（＝回答済みの印）、2本目以降は端末IDに番号を付けて保存する
   function stageCircle(mine) {
+    const conf = CFG.stages[1];
+    const LIMIT = conf.TIME_LIMIT || 30;
+    const MAX = conf.MAX_CIRCLES || 30;
     const hint = header(1);
+    const status = el('div', { class: 'circle-status' });
     const canvas = el('canvas', { class: 'draw' });
     const wrap = el('div', { class: 'canvas-wrap' }, canvas);
     const scoreEl = el('div', { class: 'score hidden' });
@@ -233,15 +239,21 @@
     const meter = el('div', { class: 'loop-meter', 'aria-hidden': 'true' }, meterFill);
     const actions = el('div', { class: 'actions' });
     const note = el('div', { class: 'done-note hidden' });
-    app.append(wrap, meter, scoreEl, comment, actions, note);
+    app.append(status, wrap, meter, scoreEl, comment, actions, note);
 
     const ctx = canvas.getContext('2d');
     let size = 300;
-    let phase = mine ? 'saved' : 'draw'; // draw | drawing | result | sending | saved
+    let phase = mine ? 'over' : 'ready'; // ready | drawing | between | over
     let stroke = []; // 0〜1 に正規化した座標
     let result = null;
-    let attempts = 0;
     let pointerId = null;
+    let reveal = 1;
+    let anim = 0;
+    let count = 0;
+    let endAt = 0;
+    let timer = null;
+    const mineCircles = []; // この端末で描いた円（64方向の半径）
+    let pending = Promise.resolve();
 
     function layout() {
       const w = Math.min(app.clientWidth - 8, 720);
@@ -257,7 +269,17 @@
       redraw();
     }
 
-    let reveal = 1; // 結果表示のアニメーションの進み具合（0〜1）
+    function setStatus() {
+      if (phase === 'over') {
+        status.replaceChildren();
+        return;
+      }
+      const left = endAt ? Math.max(0, Math.ceil((endAt - Date.now()) / 1000)) : LIMIT;
+      status.replaceChildren(
+        el('span', { class: 'timer' + (endAt && left <= 5 ? ' hurry' : '') }, '残り ', el('b', { text: String(left) }), ' 秒'),
+        el('span', { class: 'count' }, '描いた円 ', el('b', { text: String(count) }), ' 本')
+      );
+    }
 
     function updateMeter() {
       if (phase !== 'drawing' || stroke.length < 3) {
@@ -292,16 +314,17 @@
 
     function redraw() {
       ctx.clearRect(0, 0, size, size);
-      if (phase === 'saved' && mine) {
+      if (phase === 'over') {
+        // 自分が描いた円をすべて、同じ中心・同じ大きさで重ねる
         const rr = size * 0.36;
-        drawPath(circlePoints(mine.r, size / 2, size / 2, rr), true, '#2a2826', 4);
+        const list = mineCircles.length ? mineCircles : mine ? [mine.r] : [];
+        const alpha = Math.max(0.25, Math.min(0.9, 2.5 / Math.max(1, list.length)));
+        for (const r of list) drawPath(circlePoints(r, size / 2, size / 2, rr), true, `rgba(42,40,38,${alpha})`, 3);
         dashed(size / 2, size / 2, rr);
         return;
       }
       if (stroke.length) drawPath(stroke.map((p) => [p[0] * size, p[1] * size]), false, '#2a2826', 4);
-      if (result && (phase === 'result' || phase === 'sending' || phase === 'saved')) {
-        dashed(result.cx * size, result.cy * size, result.R * size, Math.min(1, reveal / 0.6));
-      }
+      if (result && phase === 'between') dashed(result.cx * size, result.cy * size, result.R * size, Math.min(1, reveal / 0.6));
     }
 
     function drawPath(pts, closed, color, width) {
@@ -341,18 +364,19 @@
 
     // 点数にそえるひとこと（「美しさ」の評価にはしない）
     function circleComment(score) {
-      const list = CFG.stages[1].comments || [];
-      for (const c of list) if (score >= c.min) return c.text;
+      for (const c of conf.comments || []) if (score >= c.min) return c.text;
       return '';
     }
 
     // 点線の円がぐるりと描かれ、数字が数え上がる
-    function playResult(res, done) {
+    function playResult(res) {
       const start = performance.now();
-      const dur = 1300;
-      comment.textContent = '';
+      const dur = 800;
+      const id = ++anim;
       comment.classList.remove('show');
+      scoreEl.classList.remove('bump');
       function frame(now) {
+        if (id !== anim) return;
         reveal = Math.min(1, (now - start) / dur);
         const e = 1 - Math.pow(1 - reveal, 3);
         showScore(res.score, res.score * e);
@@ -363,55 +387,60 @@
           scoreEl.classList.add('bump');
           comment.textContent = circleComment(res.score);
           comment.classList.add('show');
-          done();
         }
       }
       requestAnimationFrame(frame);
     }
 
-    function setActions() {
-      actions.replaceChildren();
-      if (phase === 'result' || phase === 'sending') {
-        if (attempts < 2) {
-          actions.append(
-            el('button', { class: 'btn', onclick: retry, disabled: phase === 'sending', text: 'もう一度描く（1回だけ）' })
-          );
-        }
-        actions.append(el('button', { class: 'btn primary', onclick: submit, disabled: phase === 'sending', text: 'これで決定' }));
-      }
+    function sendCircle(res, n) {
+      const cid = n === 1 ? clientId : `${clientId}-${n}`;
+      const payload = { r: res.r, score: Math.round(res.score * 10) / 10 };
+      // 失敗したら2回まで送り直す
+      const attempt = (k) =>
+        api.post('/api/answer', { class: cls, stage: 1, client_id: cid, payload }).catch((e) => {
+          if (k < 2) return new Promise((ok) => setTimeout(ok, 800)).then(() => attempt(k + 1));
+          throw e;
+        });
+      pending = pending.then(() => attempt(0)).catch(() => {
+        hint.className = 'hint warn';
+        hint.textContent = '送れなかった円があります。通信を確かめてください。';
+      });
+      if (n === 1) markDone(1);
     }
 
-    function retry() {
+    function startTimer() {
+      endAt = Date.now() + LIMIT * 1000;
+      timer = setInterval(() => {
+        setStatus();
+        if (Date.now() >= endAt && phase !== 'drawing') finish();
+      }, 250);
+    }
+
+    function finish() {
+      if (phase === 'over') return;
+      // 1本も描けていなければ、描けるまで待つ
+      if (!count) {
+        hint.className = 'hint warn';
+        hint.textContent = '時間です。最後に1本だけ、ぐるっと描いてください。';
+        return;
+      }
+      clearInterval(timer);
+      phase = 'over';
+      anim++;
       stroke = [];
       result = null;
-      phase = 'draw';
+      updateMeter();
       scoreEl.classList.add('hidden');
-      scoreEl.classList.remove('bump');
       comment.classList.remove('show');
+      actions.replaceChildren();
       hint.className = 'hint';
-      hint.textContent = 'あと1回だけ描けます。';
-      setActions();
+      hint.textContent = `おわり！ ${count} 本の円を描きました。`;
+      setStatus();
       redraw();
-    }
-
-    async function submit() {
-      if (!result) return;
-      phase = 'sending';
-      setActions();
-      try {
-        await send(1, { r: result.r, score: Math.round(result.score * 10) / 10 });
-        phase = 'saved';
-        markDone(1);
-        actions.replaceChildren();
-        hint.textContent = '';
+      pending.then(() => {
         note.textContent = '送信しました。前を見て待っていてね。';
         note.classList.remove('hidden');
-      } catch {
-        phase = 'result';
-        setActions();
-        hint.className = 'hint warn';
-        hint.textContent = '送信できませんでした。もう一度「これで決定」を押してください。';
-      }
+      });
     }
 
     function pos(e) {
@@ -421,20 +450,23 @@
 
     function onDown(e) {
       e.preventDefault();
-      if (phase !== 'draw' || !e.isPrimary) return;
+      if ((phase !== 'ready' && phase !== 'between') || !e.isPrimary) return;
+      if (!endAt) startTimer();
       pointerId = e.pointerId;
       try {
         canvas.setPointerCapture(e.pointerId);
       } catch {
         /* 何もしない */
       }
+      anim++;
       phase = 'drawing';
+      result = null;
       stroke = [pos(e)];
       scoreEl.classList.add('hidden');
       comment.classList.remove('show');
-      updateMeter();
       hint.className = 'hint';
-      hint.textContent = CFG.stages[1].hint;
+      hint.textContent = conf.hint;
+      updateMeter();
       redraw();
     }
     function onMove(e) {
@@ -450,28 +482,32 @@
       e.preventDefault();
       pointerId = null;
       const res = analyzeStroke(stroke);
+      phase = 'between';
+      updateMeter();
       if (!res || res.sweep < (300 * Math.PI) / 180 || res.R < 0.1) {
-        // 回数には数えない
+        // 本数には数えない
         stroke = [];
-        phase = 'draw';
-        updateMeter();
         hint.className = 'hint warn';
         hint.textContent = 'ぐるっと一周してね';
         canvas.classList.remove('shake');
         void canvas.offsetWidth;
         canvas.classList.add('shake');
         redraw();
-        return;
+      } else {
+        count++;
+        result = res;
+        mineCircles.push(res.r);
+        sendCircle(res, count);
+        hint.className = 'hint';
+        hint.textContent = count >= MAX ? 'ここまでです。' : '点線は、完璧な円です。もう一度描けます。';
+        reveal = 0;
+        playResult(res);
       }
-      attempts++;
-      result = res;
-      phase = 'result';
-      updateMeter();
-      hint.className = 'hint';
-      hint.textContent = attempts < 2 ? '点線は、完璧な円です。' : 'これが最後の1回です。';
-      reveal = 0;
-      scoreEl.classList.remove('bump');
-      playResult(res, setActions);
+      setStatus();
+      if (count >= MAX || (endAt && Date.now() >= endAt && count)) setTimeout(finish, 900);
+      else if (count && !actions.childElementCount) {
+        actions.append(el('button', { class: 'btn', onclick: finish, text: 'これで終わる' }));
+      }
     }
 
     canvas.addEventListener('pointerdown', onDown);
@@ -486,16 +522,21 @@
     window.addEventListener('resize', onResize);
 
     if (mine) {
-      hint.textContent = '';
-      showScore(mine.score);
-      comment.textContent = circleComment(mine.score);
-      comment.classList.add('show');
-      note.textContent = '回答済みです。';
-      note.classList.remove('hidden');
+      hint.textContent = '回答済みです。';
+      note.classList.add('hidden');
+    } else {
+      hint.textContent = `制限時間は ${LIMIT} 秒。描き始めるとスタートします。`;
     }
+    setStatus();
     requestAnimationFrame(layout);
 
-    return { destroy: () => window.removeEventListener('resize', onResize) };
+    return {
+      destroy: () => {
+        window.removeEventListener('resize', onResize);
+        clearInterval(timer);
+        anim++;
+      },
+    };
   }
 
   // =====================================================
