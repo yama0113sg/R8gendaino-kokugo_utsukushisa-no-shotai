@@ -248,6 +248,7 @@
     let result = null;
     let pointerId = null;
     let reveal = 1;
+    let fade = 1; // 前の円の濃さ（次を描けるようになると薄れて消える）
     let anim = 0;
     let count = 0;
     let endAt = 0;
@@ -323,8 +324,40 @@
         dashed(size / 2, size / 2, rr);
         return;
       }
+      ctx.save();
+      ctx.globalAlpha = fade;
       if (stroke.length) drawPath(stroke.map((p) => [p[0] * size, p[1] * size]), false, '#2a2826', 4);
       if (result && phase === 'between') dashed(result.cx * size, result.cy * size, result.R * size, Math.min(1, reveal / 0.6));
+      ctx.restore();
+      // 描ける状態のときは、キャンバスの中に案内を出す
+      if ((phase === 'ready' || phase === 'between') && fade < 0.35) {
+        ctx.save();
+        ctx.globalAlpha = 1 - fade / 0.35;
+        ctx.fillStyle = '#9a9387';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${Math.round(size * 0.05)}px ${getComputedStyle(document.body).fontFamily}`;
+        ctx.fillText(count ? 'つぎの円をどうぞ' : 'ここに描いてね', size / 2, size / 2);
+        ctx.restore();
+      }
+    }
+
+    // 結果を見せたあと、前の円をすっと消して「次を描ける」状態に
+    function fadeOut(id) {
+      const start = performance.now();
+      function frame(now) {
+        if (id !== anim) return;
+        fade = Math.max(0, 1 - (now - start) / 500);
+        redraw();
+        if (fade > 0) requestAnimationFrame(frame);
+        else {
+          stroke = [];
+          result = null;
+          canvas.classList.add('ready');
+          redraw();
+        }
+      }
+      requestAnimationFrame(frame);
     }
 
     function drawPath(pts, closed, color, width) {
@@ -387,6 +420,8 @@
           scoreEl.classList.add('bump');
           comment.textContent = circleComment(res.score);
           comment.classList.add('show');
+          // 1.2秒見せてから、前の円を消す
+          setTimeout(() => id === anim && phase === 'between' && fadeOut(id), 1200);
         }
       }
       requestAnimationFrame(frame);
@@ -427,6 +462,8 @@
       clearInterval(timer);
       phase = 'over';
       anim++;
+      fade = 1;
+      canvas.classList.remove('ready');
       stroke = [];
       result = null;
       updateMeter();
@@ -459,6 +496,8 @@
         /* 何もしない */
       }
       anim++;
+      fade = 1;
+      canvas.classList.remove('ready');
       phase = 'drawing';
       result = null;
       stroke = [pos(e)];
@@ -487,6 +526,8 @@
       if (!res || res.sweep < (300 * Math.PI) / 180 || res.R < 0.1) {
         // 本数には数えない
         stroke = [];
+        fade = 0;
+        canvas.classList.add('ready');
         hint.className = 'hint warn';
         hint.textContent = 'ぐるっと一周してね';
         canvas.classList.remove('shake');
@@ -526,6 +567,8 @@
       note.classList.add('hidden');
     } else {
       hint.textContent = `制限時間は ${LIMIT} 秒。描き始めるとスタートします。`;
+      fade = 0;
+      canvas.classList.add('ready');
     }
     setStatus();
     requestAnimationFrame(layout);

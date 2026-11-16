@@ -1007,3 +1007,16 @@ canvas.draw.shake {
   display: inline-block;
   animation: bump 1s ease infinite;
 }
+
+@keyframes readyGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(52, 80, 122, 0.35);
+  }
+}
+canvas.draw.ready {
+  animation: readyGlow 1.6s ease-in-out infinite;
+}
