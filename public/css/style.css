@@ -1020,3 +1020,141 @@ canvas.draw.shake {
 canvas.draw.ready {
   animation: readyGlow 1.6s ease-in-out infinite;
 }
+
+/* ③ A・B の札 */
+.ab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--sans);
+  font-weight: 700;
+  flex: none;
+}
+.ab.ball-b,
+.choices > :nth-child(2) .ab,
+.slide-choices > :nth-child(2) .ab {
+  background: #b5762c;
+}
+.choice {
+  flex-direction: column;
+  gap: 12px;
+}
+.choice .ab {
+  font-size: 1.3em;
+}
+.choice[aria-pressed='true'] .ab {
+  background: #fff;
+  color: var(--accent);
+}
+.slide-choices div {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.t-hand {
+  margin-top: 4vh;
+  font-size: clamp(1.3rem, 2.2vw, 2rem);
+  color: var(--ink-soft);
+}
+
+/* ③ ボールの箱 */
+.bins {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4vw;
+  width: 100%;
+  max-width: 1300px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 2vh;
+}
+.bin {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.bin-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(1.2rem, 2vw, 1.9rem);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.bin-box {
+  flex: 1;
+  min-height: 0;
+  border: 4px solid var(--ink);
+  border-top: none;
+  border-radius: 0 0 22px 22px;
+  padding: 10px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.pile {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+.ball {
+  width: clamp(40px, 4.6vw, 76px);
+  height: clamp(40px, 4.6vw, 76px);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: inset -4px -5px 0 rgba(0, 0, 0, 0.15);
+}
+.ball.ball-b {
+  background: #b5762c;
+}
+@keyframes ballDrop {
+  0% {
+    transform: translateY(-70vh);
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(0);
+  }
+  82% {
+    transform: translateY(-14px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.ball.drop {
+  opacity: 0;
+  animation: ballDrop 0.9s cubic-bezier(0.5, 0, 0.6, 1) both;
+}
+.bin-count {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 1.3rem;
+  color: var(--ink-soft);
+}
+.bin-count b {
+  font-family: var(--serif);
+  font-size: 2.6rem;
+  color: var(--ink);
+}
+
+.choice-label {
+  text-wrap: balance;
+  word-break: auto-phrase;
+}
+
+.bins.many .ball {
+  width: clamp(30px, 3.4vw, 56px);
+  height: clamp(30px, 3.4vw, 56px);
+}

@@ -45,13 +45,14 @@ window.APP_CONFIG = {
     3: {
       label: '赤ちゃんの問い',
       question: '生まれたばかりの赤ちゃんは、夕焼けを「美しい」と感じるでしょうか？',
-      // 'display'：表示のみ（挙手で答える） / 'vote'：タップで投票
-      mode: 'display',
+      // 'both'   ：はじめは挙手。先生画面の「画面で投票を始める」で、タップ投票に切り替わる
+      // 'display'：挙手だけ / 'vote'：タップ投票だけ
+      mode: 'both',
       choices: [
-        { id: 'innate', label: '生まれつき感じる' },
-        { id: 'experience', label: '経験してから感じるようになる' },
+        { id: 'innate', mark: 'A', label: '生まれつき感じる' },
+        { id: 'experience', mark: 'B', label: '経験してから感じるようになる' },
       ],
-      handText: '手を挙げて答えてね',
+      handText: 'A か B か、手を挙げて答えてね',
     },
     4: {
       // 'rectangle'：いちばん美しいと思う長方形の形をえらぶ（正解なし）

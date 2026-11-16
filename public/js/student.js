@@ -46,6 +46,7 @@
     if (s.stage === 0 || ![1, 2, 3, 4].includes(s.stage)) return 'start';
     if (s.waiting) return 'wait';
     const done = s.mine && s.mine[s.stage] ? 'd' : 't';
+    if (s.stage === 3) return `s3${voteOpen(s.view) ? 'v' : 'h'}${done}`;
     const reveal = s.stage === 4 && done === 'd' && s.reveal ? 'r' : '';
     return `s${s.stage}${done}${reveal}`;
   }
@@ -88,7 +89,7 @@
     const mine = (s.mine || {})[s.stage];
     if (s.stage === 1) return stageCircle(mine);
     if (s.stage === 2) return stageWords(mine);
-    if (s.stage === 3) return stageBaby(mine);
+    if (s.stage === 3) return stageBaby(mine, voteOpen(s.view));
     if (s.stage === 4) return stageLines(mine, !!s.reveal);
   }
 
@@ -636,14 +637,24 @@
   // =====================================================
   // ③ 赤ちゃんの問い
   // =====================================================
-  function stageBaby(mine) {
+  // ③ を投票で受け付けるか（'both' のときは、先生が「画面で投票」に切り替えたら）
+  function voteOpen(view) {
+    const mode = CFG.stages[3].mode;
+    return mode === 'vote' || (mode === 'both' && view === 'result');
+  }
+
+  function choiceBody(c) {
+    return [el('span', { class: 'ab', text: c.mark || '' }), el('span', { class: 'choice-label', text: c.label })];
+  }
+
+  function stageBaby(mine, open) {
     const conf = CFG.stages[3];
     app.append(el('div', { class: 'stage-tag', text: `${STAGE_MARK[3]} ${conf.label}` }), el('p', { class: 'question', text: conf.question }));
     const box = el('div', { class: 'choices' });
     app.append(box);
 
-    if (conf.mode !== 'vote') {
-      box.append(...conf.choices.map((c) => el('div', { class: 'choice static', text: c.label })));
+    if (!open) {
+      box.append(...conf.choices.map((c) => el('div', { class: 'choice static' }, choiceBody(c))));
       app.append(el('p', { class: 'hand', text: conf.handText }));
       return;
     }
@@ -651,12 +662,15 @@
     const note = el('div', { class: 'done-note hidden' });
     app.append(note);
     const buttons = conf.choices.map((c) => {
-      const b = el('button', {
-        class: 'choice',
-        'aria-pressed': mine && mine.choice === c.id ? 'true' : 'false',
-        disabled: !!mine,
-        text: c.label,
-      });
+      const b = el(
+        'button',
+        {
+          class: 'choice',
+          'aria-pressed': mine && mine.choice === c.id ? 'true' : 'false',
+          disabled: !!mine,
+        },
+        choiceBody(c)
+      );
       b.addEventListener('click', async () => {
         buttons.forEach((x) => (x.disabled = true));
         b.setAttribute('aria-pressed', 'true');

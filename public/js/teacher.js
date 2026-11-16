@@ -33,7 +33,7 @@
   let lastError = '';
   let busy = false;
   let poller = null;
-  let lastTug = 50;
+  let lastBalls = { a: 0, b: 0 };
   let lastScene = '';
   let intro = false; // 結果を見せた直後だけ、アニメーションで登場させる
   const lastCount = {};
@@ -251,12 +251,21 @@
     $('next').disabled = seqIndex() === SEQ.length - 1;
 
     const inStage = s >= 1 && s <= 4;
-    const isDisplay3 = s === 3 && CFG.stages[3].mode !== 'vote';
+    const mode3 = CFG.stages[3].mode;
+    const isDisplay3 = s === 3 && mode3 === 'display';
     $('wait').disabled = !inStage;
     $('wait').textContent = state.waiting && inStage ? '待機を解除' : '待機にする';
     $('view').classList.toggle('hidden', !inStage || isDisplay3);
     $('view').textContent =
-      state.view === 'result' ? '問いに戻す' : s === 4 && CFG.stages[4].variant !== 'rectangle' ? '結果と正解を見せる' : '結果を見せる';
+      s === 3 && mode3 === 'both'
+        ? state.view === 'result'
+          ? '挙手の画面に戻す'
+          : '画面で投票を始める'
+        : state.view === 'result'
+          ? '問いに戻す'
+          : s === 4 && CFG.stages[4].variant !== 'rectangle'
+            ? '結果と正解を見せる'
+            : '結果を見せる';
     $('sort').classList.toggle('hidden', !(s === 2 && state.view === 'result'));
     $('sort').textContent = sortByRate ? 'もとの順に戻す' : '割合順に並べる';
 
@@ -309,10 +318,15 @@
     const data = results[s] || { count: 0, answers: [] };
     main.append(el('div', { class: 't-tag', text: MARK[s] + ' ' + conf.label }));
 
-    if (s === 3 && conf.mode !== 'vote') {
+    if (s === 3 && (conf.mode === 'display' || (conf.mode === 'both' && state.view !== 'result'))) {
       main.append(
         el('p', { class: 't-question', text: conf.question }),
-        el('div', { class: 'slide-choices' }, conf.choices.map((c) => el('div', { text: c.label })))
+        el(
+          'div',
+          { class: 'slide-choices' },
+          conf.choices.map((c) => el('div', null, el('span', { class: 'ab', text: c.mark || '' }), el('span', { text: c.label })))
+        ),
+        el('p', { class: 't-hand', text: conf.handText })
       );
       return;
     }
@@ -333,7 +347,7 @@
 
     if (s === 1) renderCircles(main, data);
     else if (s === 2) renderWords(main, data);
-    else if (s === 3) renderTug(main, data);
+    else if (s === 3) renderBalls(main, data);
     else if (s === 4) renderLines(main, data);
   }
 
@@ -437,7 +451,8 @@
   }
 
   // ③ 綱引きのバー（投票モード）
-  function renderTug(main, data) {
+  // ③ 投票：選ぶたびに、左右の箱へボールが落ちて積もる
+  function renderBalls(main, data) {
     const [c1, c2] = CFG.stages[3].choices;
     let a = 0;
     let b = 0;
@@ -445,23 +460,31 @@
       if (x.choice === c1.id) a++;
       else if (x.choice === c2.id) b++;
     }
-    const total = a + b;
-    const left = total ? (a / total) * 100 : 50;
-    const pct = (v) => (total ? Math.round((v / total) * 100) + '％' : '—');
-    const leftBar = el('div', { class: 'tug-left' });
-    leftBar.style.width = lastTug + '%';
-    lastTug = left;
-    main.append(
-      el('p', { class: 't-question', style: 'font-size:clamp(1.4rem,2.6vw,2.4rem)', text: CFG.stages[3].question }),
-      el(
+    const prev = intro ? { a: 0, b: 0 } : lastBalls;
+    lastBalls = { a, b };
+    function bin(c, n, before, cls) {
+      const pile = el('div', { class: 'pile' });
+      for (let i = 0; i < n; i++) {
+        const ball = el('span', { class: 'ball ' + cls });
+        if (i >= before) {
+          ball.classList.add('drop');
+          ball.style.animationDelay = Math.round((i - before) * (intro ? 90 : 160) + Math.random() * 60) + 'ms';
+        }
+        pile.append(ball);
+      }
+      return el(
         'div',
-        { class: 'tug' },
-        el('div', { class: 'tug-labels' }, el('span', { text: c1.label }), el('span', { text: c2.label })),
-        el('div', { class: 'tug-bar' }, leftBar, el('div', { class: 'tug-mid' })),
-        el('div', { class: 'tug-nums' }, el('span', { text: `${a}人（${pct(a)}）` }), el('span', { text: `${b}人（${pct(b)}）` }))
-      )
+        { class: 'bin' },
+        el('div', { class: 'bin-head' }, el('span', { class: 'ab ' + cls, text: c.mark || '' }), el('span', { text: c.label })),
+        el('div', { class: 'bin-box' }, pile),
+        el('div', { class: 'bin-count' }, el('b', { text: String(n) }), ' 人')
+      );
+    }
+    main.append(
+      el('p', { class: 't-question', style: 'font-size:clamp(1.4rem,2.4vw,2.2rem)', text: CFG.stages[3].question }),
+      // 片方に多く集まったら、箱からあふれないようにボールを小さくする
+      el('div', { class: 'bins' + (Math.max(a, b) > 28 ? ' many' : '') }, bin(c1, a, prev.a, 'ball-a'), bin(c2, b, prev.b, 'ball-b'))
     );
-    requestAnimationFrame(() => requestAnimationFrame(() => (leftBar.style.width = left + '%')));
   }
 
   // ④ 比率の分布と正解
