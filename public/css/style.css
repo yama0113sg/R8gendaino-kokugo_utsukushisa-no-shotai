@@ -768,3 +768,213 @@ input[type='range'].big::-moz-range-thumb {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ========== 動き ========== */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes drawIn {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes dropIn {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+@keyframes bump {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 生徒画面 */
+.done-note:not(.hidden) {
+  animation: fadeUp 0.45s ease both;
+}
+.done-note::before {
+  content: '✓';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  margin-right: 0.5em;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  font-size: 0.9em;
+  animation: pop 0.45s ease both;
+}
+.card[aria-pressed='true'],
+.choice[aria-pressed='true'] {
+  animation: pop 0.28s ease;
+}
+canvas.draw.shake {
+  animation: shake 0.4s ease;
+}
+.score.bump .value {
+  display: inline-block;
+  animation: bump 0.4s ease;
+}
+.circle-comment {
+  text-align: center;
+  min-height: 1.6em;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  opacity: 0;
+}
+.circle-comment.show {
+  animation: fadeUp 0.5s ease both;
+}
+.loop-meter {
+  width: min(320px, 70%);
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  margin: 12px auto 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.loop-meter.on {
+  opacity: 1;
+}
+.loop-meter-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 4px;
+}
+.loop-meter.full .loop-meter-fill {
+  background: var(--ok);
+}
+
+/* 先生画面 */
+.draw-in {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: drawIn 0.9s ease forwards;
+}
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.8s ease forwards;
+}
+.drop-in {
+  opacity: 0;
+  animation: dropIn 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) forwards;
+}
+.t-count b.bump {
+  display: inline-block;
+  animation: bump 0.5s ease;
+}
+.t-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 640px;
+  margin-top: 3vh;
+}
+.t-dots span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.75;
+}
+.t-dots span.new {
+  animation: pop 0.5s ease both;
+}
+.tile {
+  position: relative;
+}
+.tile .p b {
+  font-weight: inherit;
+}
+.tile.split {
+  outline: 4px solid var(--vermilion);
+  outline-offset: 3px;
+}
+.tile .badge {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--vermilion);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: pop 0.45s ease both;
+  animation-delay: var(--badge-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -227,9 +227,13 @@
     const canvas = el('canvas', { class: 'draw' });
     const wrap = el('div', { class: 'canvas-wrap' }, canvas);
     const scoreEl = el('div', { class: 'score hidden' });
+    const comment = el('div', { class: 'circle-comment' });
+    // 一周までの進み具合（円の形のガイドにならないよう、横棒で示す）
+    const meterFill = el('div', { class: 'loop-meter-fill' });
+    const meter = el('div', { class: 'loop-meter', 'aria-hidden': 'true' }, meterFill);
     const actions = el('div', { class: 'actions' });
     const note = el('div', { class: 'done-note hidden' });
-    app.append(wrap, scoreEl, actions, note);
+    app.append(wrap, meter, scoreEl, comment, actions, note);
 
     const ctx = canvas.getContext('2d');
     let size = 300;
@@ -242,7 +246,7 @@
     function layout() {
       const w = Math.min(app.clientWidth - 8, 720);
       const top = canvas.getBoundingClientRect().top + window.scrollY;
-      const h = window.innerHeight - top - 190;
+      const h = window.innerHeight - top - 250;
       size = Math.max(240, Math.min(w, h));
       const dpr = window.devicePixelRatio || 1;
       canvas.style.width = size + 'px';
@@ -251,6 +255,39 @@
       canvas.height = Math.round(size * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       redraw();
+    }
+
+    let reveal = 1; // 結果表示のアニメーションの進み具合（0〜1）
+
+    function updateMeter() {
+      if (phase !== 'drawing' || stroke.length < 3) {
+        meter.classList.toggle('on', phase === 'drawing');
+        meterFill.style.width = '0%';
+        meter.classList.remove('full');
+        return;
+      }
+      let cx = 0;
+      let cy = 0;
+      for (const p of stroke) {
+        cx += p[0];
+        cy += p[1];
+      }
+      cx /= stroke.length;
+      cy /= stroke.length;
+      let sweep = 0;
+      let prev = Math.atan2(stroke[0][1] - cy, stroke[0][0] - cx);
+      for (let i = 1; i < stroke.length; i++) {
+        const a = Math.atan2(stroke[i][1] - cy, stroke[i][0] - cx);
+        let da = a - prev;
+        if (da > Math.PI) da -= 2 * Math.PI;
+        if (da < -Math.PI) da += 2 * Math.PI;
+        sweep += da;
+        prev = a;
+      }
+      const f = Math.min(1, Math.abs(sweep) / ((300 * Math.PI) / 180));
+      meter.classList.add('on');
+      meter.classList.toggle('full', f >= 1);
+      meterFill.style.width = (f * 100).toFixed(1) + '%';
     }
 
     function redraw() {
@@ -263,7 +300,7 @@
       }
       if (stroke.length) drawPath(stroke.map((p) => [p[0] * size, p[1] * size]), false, '#2a2826', 4);
       if (result && (phase === 'result' || phase === 'sending' || phase === 'saved')) {
-        dashed(result.cx * size, result.cy * size, result.R * size);
+        dashed(result.cx * size, result.cy * size, result.R * size, Math.min(1, reveal / 0.6));
       }
     }
 
@@ -280,24 +317,56 @@
       ctx.stroke();
     }
 
-    function dashed(x, y, r) {
+    function dashed(x, y, r, frac) {
+      const f = frac === undefined ? 1 : frac;
+      if (f <= 0) return;
       ctx.save();
       ctx.setLineDash([7, 8]);
       ctx.strokeStyle = '#c2553d';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f);
       ctx.stroke();
       ctx.restore();
     }
 
-    function showScore(score) {
+    function showScore(score, shown) {
       scoreEl.classList.remove('hidden');
       scoreEl.replaceChildren(
         el('span', { class: 'label', text: '真円度' }),
-        el('span', { class: 'value', text: String(Math.round(score)) }),
+        el('span', { class: 'value', text: String(Math.round(shown === undefined ? score : shown)) }),
         el('span', { class: 'unit', text: '％' })
       );
+    }
+
+    // 点数にそえるひとこと（「美しさ」の評価にはしない）
+    function circleComment(score) {
+      const list = CFG.stages[1].comments || [];
+      for (const c of list) if (score >= c.min) return c.text;
+      return '';
+    }
+
+    // 点線の円がぐるりと描かれ、数字が数え上がる
+    function playResult(res, done) {
+      const start = performance.now();
+      const dur = 1300;
+      comment.textContent = '';
+      comment.classList.remove('show');
+      function frame(now) {
+        reveal = Math.min(1, (now - start) / dur);
+        const e = 1 - Math.pow(1 - reveal, 3);
+        showScore(res.score, res.score * e);
+        redraw();
+        if (reveal < 1) requestAnimationFrame(frame);
+        else {
+          showScore(res.score);
+          scoreEl.classList.add('bump');
+          comment.textContent = circleComment(res.score);
+          comment.classList.add('show');
+          done();
+        }
+      }
+      requestAnimationFrame(frame);
     }
 
     function setActions() {
@@ -317,6 +386,8 @@
       result = null;
       phase = 'draw';
       scoreEl.classList.add('hidden');
+      scoreEl.classList.remove('bump');
+      comment.classList.remove('show');
       hint.className = 'hint';
       hint.textContent = 'あと1回だけ描けます。';
       setActions();
@@ -359,6 +430,9 @@
       }
       phase = 'drawing';
       stroke = [pos(e)];
+      scoreEl.classList.add('hidden');
+      comment.classList.remove('show');
+      updateMeter();
       hint.className = 'hint';
       hint.textContent = CFG.stages[1].hint;
       redraw();
@@ -369,6 +443,7 @@
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of evs.length ? evs : [e]) stroke.push(pos(ev));
       redraw();
+      updateMeter();
     }
     function onUp(e) {
       if (phase !== 'drawing' || e.pointerId !== pointerId) return;
@@ -379,19 +454,24 @@
         // 回数には数えない
         stroke = [];
         phase = 'draw';
+        updateMeter();
         hint.className = 'hint warn';
         hint.textContent = 'ぐるっと一周してね';
+        canvas.classList.remove('shake');
+        void canvas.offsetWidth;
+        canvas.classList.add('shake');
         redraw();
         return;
       }
       attempts++;
       result = res;
       phase = 'result';
+      updateMeter();
       hint.className = 'hint';
       hint.textContent = attempts < 2 ? '点線は、完璧な円です。' : 'これが最後の1回です。';
-      showScore(res.score);
-      setActions();
-      redraw();
+      reveal = 0;
+      scoreEl.classList.remove('bump');
+      playResult(res, setActions);
     }
 
     canvas.addEventListener('pointerdown', onDown);
@@ -408,6 +488,8 @@
     if (mine) {
       hint.textContent = '';
       showScore(mine.score);
+      comment.textContent = circleComment(mine.score);
+      comment.classList.add('show');
       note.textContent = '回答済みです。';
       note.classList.remove('hidden');
     }

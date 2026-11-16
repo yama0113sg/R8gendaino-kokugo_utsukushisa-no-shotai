@@ -34,6 +34,38 @@
   let busy = false;
   let poller = null;
   let lastTug = 50;
+  let lastScene = '';
+  let intro = false; // 結果を見せた直後だけ、アニメーションで登場させる
+  const lastCount = {};
+
+  // 数字を数え上げる
+  function countUp(b, to, digits, ms) {
+    if (!intro || to === null || !Number.isFinite(to)) return;
+    const start = performance.now();
+    const d = ms || 1200;
+    function frame(now) {
+      const t = Math.min(1, (now - start) / d);
+      const e = 1 - Math.pow(1 - t, 3);
+      b.textContent = (to * e).toFixed(digits);
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    b.textContent = (0).toFixed(digits);
+    requestAnimationFrame(frame);
+  }
+  function countUpAt(b, to, ms) {
+    const start = performance.now();
+    function frame(now) {
+      const t = Math.min(1, (now - start) / ms);
+      b.textContent = String(Math.round(to * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  const num = (v, digits) => {
+    const b = el('b', { text: v === null ? '—' : v.toFixed(digits) });
+    countUp(b, v, digits);
+    return b;
+  };
 
   $('brand').textContent = CFG.TITLE;
 
@@ -249,6 +281,9 @@
     const sig = JSON.stringify([s, state.view, state.reveal, sortByRate, s >= 1 && s <= 4 ? results[s] : null]);
     if (sig === lastSig) return;
     lastSig = sig;
+    const scene = [s, state.view, state.reveal].join(':');
+    intro = scene !== lastScene;
+    lastScene = scene;
     const main = $('main');
     main.replaceChildren();
 
@@ -281,12 +316,16 @@
     }
 
     if (state.view !== 'result') {
-      main.append(
-        el('p', { class: 't-question', text: conf.question }),
-        el('div', { class: 't-count' }, '回答', el('b', { text: String(data.count) }), '人')
-      );
+      // 回答が届くたびに、点がひとつずつ増える
+      const prev = intro ? data.count : Math.min(lastCount[s] ?? data.count, data.count);
+      const dots = el('div', { class: 't-dots' });
+      for (let i = 0; i < data.count; i++) dots.append(el('span', { class: i >= prev ? 'new' : '' }));
+      const b = el('b', { text: String(data.count), class: data.count > prev ? 'bump' : '' });
+      main.append(el('p', { class: 't-question', text: conf.question }), el('div', { class: 't-count' }, '回答', b, '人'), dots);
+      lastCount[s] = data.count;
       return;
     }
+    lastCount[s] = data.count;
 
     if (s === 1) renderCircles(main, data);
     else if (s === 2) renderWords(main, data);
@@ -301,37 +340,46 @@
     const g = svg('svg', { viewBox: `0 0 ${V} ${V}`, style: 'height:100%;width:auto' });
     const n = data.answers.length;
     const alpha = n ? Math.max(0.12, Math.min(0.6, 5 / n)) : 0;
-    for (const a of data.answers) {
-      g.append(
-        svg('path', {
-          d: pointsToPath(circlePoints(a.r, V / 2, V / 2, R), true),
-          fill: 'none',
-          stroke: COLOR.accent,
-          'stroke-opacity': alpha,
-          'stroke-width': 3,
-          'stroke-linejoin': 'round',
-        })
-      );
-    }
-    g.append(
-      svg('circle', {
-        cx: V / 2,
-        cy: V / 2,
-        r: R,
+    // 1本ずつ描かれていく（全体で約2.5秒）
+    const step = n ? Math.min(90, 2200 / n) : 0;
+    data.answers.forEach((a, i) => {
+      const p = svg('path', {
+        d: pointsToPath(circlePoints(a.r, V / 2, V / 2, R), true),
         fill: 'none',
-        stroke: COLOR.red,
-        'stroke-width': 5,
-        'stroke-dasharray': '14 14',
-      })
-    );
+        stroke: COLOR.accent,
+        'stroke-opacity': alpha,
+        'stroke-width': 3,
+        'stroke-linejoin': 'round',
+        pathLength: 1,
+      });
+      if (intro) {
+        p.classList.add('draw-in');
+        p.style.animationDelay = Math.round(i * step) + 'ms';
+      }
+      g.append(p);
+    });
+    const ideal = svg('circle', {
+      cx: V / 2,
+      cy: V / 2,
+      r: R,
+      fill: 'none',
+      stroke: COLOR.red,
+      'stroke-width': 5,
+      'stroke-dasharray': '14 14',
+    });
+    if (intro) {
+      ideal.classList.add('fade-in');
+      ideal.style.animationDelay = Math.round(n * step + 600) + 'ms';
+    }
+    g.append(ideal);
     const avg = n ? data.answers.reduce((x, a) => x + a.score, 0) / n : null;
     main.append(
       el('div', { class: 't-figure' }, g),
       el(
         'div',
         { class: 't-stats' },
-        el('span', null, '回答', el('b', { text: String(n) }), ' 人'),
-        el('span', null, '平均の真円度', el('b', { text: avg === null ? '—' : String(Math.round(avg)) }), ' ％')
+        el('span', null, '回答', num(n, 0), ' 人'),
+        el('span', null, '平均の真円度', num(avg, 0), ' ％')
       )
     );
   }
@@ -344,15 +392,43 @@
     for (const a of data.answers) for (const w of a.selected || []) if (w in counts) counts[w]++;
     let order = words.map((w, i) => ({ w, i, rate: n ? counts[w] / n : 0 }));
     if (sortByRate) order = order.slice().sort((a, b) => b.rate - a.rate || a.i - b.i);
+    // いちばん意見が割れた言葉（50％にいちばん近いもの）
+    let split = null;
+    if (n) for (const o of order) if (!split || Math.abs(o.rate - 0.5) < Math.abs(split.rate - 0.5)) split = o;
     const tiles = el('div', { class: 'tiles' });
-    for (const o of order) {
-      const t = el('div', { class: 'tile' }, el('div', { class: 'w', text: o.w }), el('div', { class: 'p', text: n ? Math.round(o.rate * 100) + '％' : '—' }));
-      t.style.background = `rgba(52, 80, 122, ${(0.04 + o.rate * 0.86).toFixed(3)})`;
-      t.style.color = o.rate > 0.45 ? '#fff' : COLOR.ink;
-      t.style.borderColor = o.rate > 0.45 ? 'transparent' : COLOR.line;
+    order.forEach((o, i) => {
+      const pct = el('b', { text: n ? String(Math.round(o.rate * 100)) : '—' });
+      const t = el(
+        'div',
+        { class: 'tile' + (split === o ? ' split' : '') },
+        el('div', { class: 'w', text: o.w }),
+        el('div', { class: 'p' }, pct, n ? '％' : ''),
+        split === o ? el('div', { class: 'badge', text: 'いちばん割れた' }) : null
+      );
+      const bg = `rgba(52, 80, 122, ${(0.04 + o.rate * 0.86).toFixed(3)})`;
+      const fg = o.rate > 0.45 ? '#fff' : COLOR.ink;
+      const bd = o.rate > 0.45 ? 'transparent' : COLOR.line;
+      if (intro) {
+        // 1枚ずつ、色が染まっていく
+        t.style.background = 'rgba(52, 80, 122, 0.04)';
+        t.style.color = COLOR.ink;
+        const delay = 250 + i * 180;
+        setTimeout(() => {
+          t.style.background = bg;
+          t.style.color = fg;
+          t.style.borderColor = bd;
+          if (n) countUpAt(pct, Math.round(o.rate * 100), 600);
+        }, delay);
+        if (split === o) t.style.setProperty('--badge-delay', delay + 900 + 'ms');
+        if (n) pct.textContent = '0';
+      } else {
+        t.style.background = bg;
+        t.style.color = fg;
+        t.style.borderColor = bd;
+      }
       tiles.append(t);
-    }
-    main.append(el('div', { class: 't-figure' }, tiles), el('div', { class: 't-stats' }, el('span', null, '回答', el('b', { text: String(n) }), ' 人')));
+    });
+    main.append(el('div', { class: 't-figure' }, tiles), el('div', { class: 't-stats' }, el('span', null, '回答', num(n, 0), ' 人')));
   }
 
   // ③ 綱引きのバー（投票モード）
@@ -416,9 +492,14 @@
     g.append(cap);
 
     const alpha = n ? Math.max(0.15, Math.min(0.7, 6 / n)) : 0;
-    for (const k of ks) {
-      g.append(svg('line', { x1: x(k), x2: x(k), y1: y0, y2: y1, stroke: COLOR.accent, 'stroke-opacity': alpha, 'stroke-width': 5 }));
-    }
+    ks.forEach((k, i) => {
+      const l = svg('line', { x1: x(k), x2: x(k), y1: y0, y2: y1, stroke: COLOR.accent, 'stroke-opacity': alpha, 'stroke-width': 5 });
+      if (intro) {
+        l.classList.add('drop-in');
+        l.style.animationDelay = Math.round(Math.random() * 900) + 'ms';
+      }
+      g.append(l);
+    });
 
     let avg = null;
     let q1 = null;
@@ -432,15 +513,36 @@
       const qt = svg('text', { x: x(q3) + 14, y: y0 - 6, 'font-size': 26, fill: COLOR.red });
       qt.textContent = 'まん中の半分の人';
       g.append(qt);
-      // クラスの平均の長方形
-      const area = 150000;
+      // 全員の長方形を同じ中心・同じ面積で重ね、平均を太線で
+      const area = 130000;
+      const cy = 640;
+      const ra = Math.max(0.12, Math.min(0.5, 4 / n));
+      const stepMs = Math.min(70, 1800 / n);
+      ks.slice()
+        .sort(() => Math.random() - 0.5)
+        .forEach((k, i) => {
+          const w = Math.sqrt(area * k);
+          const h = Math.sqrt(area / k);
+          const r = svg('rect', { x: W / 2 - w / 2, y: cy - h / 2, width: w, height: h, fill: 'none', stroke: COLOR.accent, 'stroke-opacity': ra, 'stroke-width': 3 });
+          if (intro) {
+            r.classList.add('fade-in');
+            r.style.animationDelay = Math.round(i * stepMs) + 'ms';
+          }
+          g.append(r);
+        });
       const w = Math.sqrt(area * avg);
       const h = Math.sqrt(area / avg);
-      const cy = 640;
-      g.append(svg('rect', { x: W / 2 - w / 2, y: cy - h / 2, width: w, height: h, fill: '#e6ecf4', stroke: COLOR.ink, 'stroke-width': 6 }));
-      const t = svg('text', { x: W / 2, y: cy - h / 2 - 22, 'text-anchor': 'middle', 'font-size': 34, fill: COLOR.ink, 'font-weight': 700 });
-      t.textContent = 'クラスの平均の長方形';
-      g.append(t);
+      const avgRect = svg('rect', { x: W / 2 - w / 2, y: cy - h / 2, width: w, height: h, fill: 'none', stroke: COLOR.red, 'stroke-width': 7 });
+      const t = svg('text', { x: W / 2, y: cy - Math.sqrt(area / ks[0]) / 2 - 22, 'text-anchor': 'middle', 'font-size': 32, fill: COLOR.red, 'font-weight': 700 });
+      t.textContent = 'みんなの長方形と、その平均（赤）';
+      if (intro) {
+        const d = Math.round(n * stepMs + 500) + 'ms';
+        avgRect.classList.add('fade-in');
+        avgRect.style.animationDelay = d;
+        t.classList.add('fade-in');
+        t.style.animationDelay = d;
+      }
+      g.append(avgRect, t);
     }
 
     main.append(
@@ -448,8 +550,8 @@
       el(
         'div',
         { class: 't-stats' },
-        el('span', null, '回答', el('b', { text: String(n) }), ' 人'),
-        el('span', null, '平均', el('b', { text: avg === null ? '—' : avg.toFixed(2) }), ' 倍'),
+        el('span', null, '回答', num(n, 0), ' 人'),
+        el('span', null, '平均', num(avg, 2), ' 倍'),
         el('span', null, 'まん中の半分の人', el('b', { text: q1 === null ? '—' : `${q1.toFixed(2)}〜${q3.toFixed(2)}` }), ' 倍')
       )
     );
